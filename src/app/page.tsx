@@ -7,14 +7,14 @@ import { PointCard } from "@/components/PointCard";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { encodeId } from "@/lib/encodeId";
-import { favor } from "@/lib/negation-game/favor";
 import { preventDefaultIfContainsSelection } from "@/lib/preventDefaultIfContainsSelection";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import { useToggle } from "@uidotdev/usehooks";
-import { DiscIcon, PlusIcon } from "lucide-react";
+import { DiscIcon, PlusIcon, MessageCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { ChatDialog } from "@/components/ChatDialog";
 
 export default function Home() {
   const { user, login } = usePrivy();
@@ -32,6 +32,7 @@ export default function Home() {
   >(undefined);
 
   const [makePointOpen, onMakePointOpenChange] = useToggle(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
     <main className="sm:grid sm:grid-cols-[1fr_minmax(200px,600px)_1fr] flex-grow gap-md  bg-background overflow-auto">
@@ -66,15 +67,26 @@ export default function Home() {
           </Link>
         ))}
       </div>
-      <Button
-        className="fixed bottom-md right-sm sm:right-md rounded-full p-3 h-fit sm:px-4"
-        onClick={() => {
-          user !== null ? onMakePointOpenChange(true) : login();
-        }}
-      >
-        <PlusIcon className="inline align-baseline" />
-        <span className="hidden  sm:block ml-sm">Make a Point</span>
-      </Button>
+      <div className="fixed bottom-md right-sm sm:right-md flex flex-col gap-sm">
+        <Button
+          className="rounded-full p-3 h-fit"
+          variant="outline"
+          onClick={() => {
+            user !== null ? setIsChatOpen(true) : login();
+          }}
+        >
+          <MessageCircleIcon className="inline align-baseline" />
+        </Button>
+        <Button
+          className="rounded-full p-3 h-fit sm:px-4"
+          onClick={() => {
+            user !== null ? onMakePointOpenChange(true) : login();
+          }}
+        >
+          <PlusIcon className="inline align-baseline" />
+          <span className="hidden sm:block ml-sm">Make a Point</span>
+        </Button>
+      </div>
 
       <NegateDialog
         negatedPoint={negatedPoint}
@@ -87,6 +99,7 @@ export default function Home() {
         open={makePointOpen}
         onOpenChange={onMakePointOpenChange}
       />
+      <ChatDialog open={isChatOpen} onOpenChange={setIsChatOpen} />
     </main>
   );
 }
