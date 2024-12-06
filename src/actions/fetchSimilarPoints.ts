@@ -28,8 +28,8 @@ export const fetchSimilarPoints = async ({ query }: { query: string }) => {
       pointsWithDetailsView,
       eq(pointsWithDetailsView.pointId, embeddingsTable.id)
     )
-    .where(gt(similarity, 0.5))
+    .where(gt(similarity, 0.3))
     .orderBy((t) => desc(t.similarity))
-    .limit(5)
+    .limit(10)
     .then(addFavor);
 };
