@@ -190,6 +190,13 @@
       "when": 1733773219999,
       "tag": "0026_omniscient_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1733780923253,
+      "tag": "0027_colossal_harpoon",
+      "breakpoints": true
     }
   ]
 }

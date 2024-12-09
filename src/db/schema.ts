@@ -7,3 +7,10 @@ export { usersTable } from "@/db/tables/usersTable";
 
 export { pointFavorHistoryView } from "@/db/views/pointFavorHistoryView";
 export { pointsWithDetailsView } from "@/db/views/pointsWithDetailsView";
+
+export { restakesTable } from "@/db/tables/restakesTable";
+export { doubtsTable } from "@/db/tables/doubtsTable";
+export { slashingEventsTable } from "@/db/tables/slashingEventsTable";
+
+export { restakeDetailsView } from "@/db/views/restakeDetailsView";
+export { userStakingStatsView } from "@/db/views/userStakingStatsView";

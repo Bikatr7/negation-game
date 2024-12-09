@@ -4,7 +4,7 @@ import { InfoIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type RestakerInfo = {
-  address: string;
+  userId: string;
   amount: number;
   reputation: number;
 };
@@ -58,7 +58,7 @@ export const ReputationAnalysisDialog = ({
                   className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
                 >
                   <div className="space-y-1">
-                    <p className="font-medium">{restaker.address}</p>
+                    <p className="font-medium">{restaker.userId}</p>
                     <p className="text-sm text-muted-foreground">
                       {restaker.amount} cred staked
                     </p>

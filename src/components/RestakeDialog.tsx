@@ -6,7 +6,7 @@ import { FC, useState, useEffect, useCallback, useMemo } from "react";
 import { ArrowLeftIcon, AlertCircle, Check, InfoIcon } from "lucide-react";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fetchFavorHistory } from "@/actions/fetchFavorHistory";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DEFAULT_TIMESCALE } from "@/constants/config";
 import { TimelineScale } from "@/lib/timelineScale";
 import { Loader } from "./ui/loader";
@@ -14,7 +14,6 @@ import { cn } from "@/lib/cn";
 import { endorse } from "@/actions/endorse";
 import { CredInput } from "@/components/CredInput";
 import { useCredInput } from "@/hooks/useCredInput";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToggle } from "@uidotdev/usehooks";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -24,6 +23,13 @@ import { favor } from "@/lib/negation-game/favor";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { ReputationAnalysisDialog } from "./ReputationAnalysisDialog";
+import { usePrivy } from "@privy-io/react-auth";
+import { getStakeInfo } from "@/actions/getStakeInfo";
+import { submitStake } from "@/actions/submitStake";
+import { submitDoubt } from "@/actions/submitDoubt";
+import { getRestakeDetails } from "@/actions/getRestakeDetails";
+import { getRestakersInfo } from "@/actions/getRestakersInfo";
+import { submitSlash } from "@/actions/submitSlash";
 
 export interface RestakeDialogProps extends DialogProps {
   originalPoint: {
@@ -61,31 +67,86 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
   openedFromSlashedIcon,
   ...props
 }) => {
-  // Get existing restake amount from localStorage (in cred)
-  const existingRestakeKey = `restake-${originalPoint.id}-${counterPoint.id}`;
-  const existingStakedCred = Number(localStorage.getItem(existingRestakeKey)) || 0;
-  
-  // Get total restaked amount from all restakers (sum of all localStorage entries)
-  const totalRestaked = useMemo(() => {
-    // In reality this would come from the database
-    // For now simulate with localStorage
-    return existingStakedCred; // This is just one restaker's amount for now
-  }, [existingStakedCred]);
+  const { user: privyUser } = usePrivy();
+  const queryClient = useQueryClient();
 
-  const DEFAULT_DOUBT_AMOUNT = 30; 
+  // Get existing stake info from database
+  const { data: stakeInfo } = useQuery({
+    queryKey: ['stake-info', originalPoint.id, counterPoint.id, privyUser?.id],
+    queryFn: () => getStakeInfo(
+      originalPoint.id, 
+      counterPoint.id, 
+      privyUser?.id || ''
+    ),
+    enabled: !!privyUser?.id && open
+  });
+
+  const existingStakedCred = stakeInfo?.stakedAmount ?? 0;
+  
+  // Get total restaked amount from database view
+  const { data: restakeDetails } = useQuery({
+    queryKey: ['restake-details', originalPoint.id],
+    queryFn: () => getRestakeDetails(originalPoint.id),
+    enabled: open
+  });
+
+  const totalRestaked = restakeDetails?.[0]?.totalRestakedAmount ?? 0;
+
+  // Mutations for stake/doubt submissions
+  const submitStakeMutation = useMutation({
+    mutationFn: (amount: number) => submitStake(
+      originalPoint.id,
+      counterPoint.id,
+      privyUser?.id || '',
+      amount
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stake-info'] });
+      queryClient.invalidateQueries({ queryKey: ['restake-details'] });
+    }
+  });
+
+  const submitDoubtMutation = useMutation({
+    mutationFn: (amount: number) => submitDoubt(
+      originalPoint.id,
+      counterPoint.id,
+      privyUser?.id || '',
+      amount
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stake-info'] });
+      queryClient.invalidateQueries({ queryKey: ['restake-details'] });
+    }
+  });
+
+  const submitSlashMutation = useMutation({
+    mutationFn: () => {
+      if (!stakeInfo?.stakeId) throw new Error('No stake found');
+      return submitSlash(
+        stakeInfo.stakeId,
+        privyUser?.id || '',
+        slashAmount,
+        'Self-slashed'
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stake-info'] });
+      queryClient.invalidateQueries({ queryKey: ['restake-details'] });
+    }
+  });
+
+  const DEFAULT_DOUBT_AMOUNT = 30;
   const maxStakeAmount = Math.floor(openedFromSlashedIcon 
     ? totalRestaked > 0 
-      ? Math.min(originalPoint.viewerCred || 0, totalRestaked)  // Cap by total restaked when doubting
-      : Math.min(originalPoint.viewerCred || 0, DEFAULT_DOUBT_AMOUNT) // Use default amount if no restakes
+      ? Math.min(originalPoint.viewerCred || 0, totalRestaked)
+      : Math.min(originalPoint.viewerCred || 0, DEFAULT_DOUBT_AMOUNT)
     : (originalPoint.viewerCred || 0)
   );
 
   // Get favor from restaking from localStorage
   const favorFromRestaking = useMemo(() => {
-    // In reality this would come from the database
-    // For now simulate with localStorage - assume 1:1 ratio for demo
-    return existingStakedCred;
-  }, [existingStakedCred]);
+    return restakeDetails?.[0]?.activeRestakedAmount ?? 0;
+  }, [restakeDetails]);
 
   const [stakedCred, setStakedCred] = useState(
     openedFromSlashedIcon ? 0 : existingStakedCred
@@ -96,7 +157,6 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
   const { cred, setCred, notEnoughCred } = useCredInput({
     resetWhen: !endorsePopoverOpen,
   });
-  const queryClient = useQueryClient();
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedValues, setSubmittedValues] = useState<{
     slashAmount: number;
@@ -155,17 +215,19 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
 
   const handleSubmit = () => {
     if (openedFromSlashedIcon) {
-      const doubtKey = `doubt-${originalPoint.id}-${counterPoint.id}`;
-      localStorage.setItem(doubtKey, stakedCred.toString());
+      submitDoubtMutation.mutate(stakedCred);
     } else {
-      const restakeKey = `restake-${originalPoint.id}-${counterPoint.id}`;
-      localStorage.setItem(restakeKey, stakedCred.toString());
+      if (isSlashing) {
+        submitSlashMutation.mutate();
+      } else {
+        submitStakeMutation.mutate(stakedCred);
+      }
     }
     
     setSubmittedValues({
       slashAmount,
       stakeAmount,
-      currentlyStaked,
+      currentlyStaked: existingStakedCred,
       maxStakeAmount,
       stakePercentage: Math.round((stakedCred / maxStakeAmount) * 100),
       bonusFavor,
@@ -183,21 +245,14 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     return Math.floor((stakedCred / maxStakeAmount) * 100);
   }, [openedFromSlashedIcon, stakedCred, maxStakeAmount]);
 
-  const mockRestakers: RestakerInfo[] = [
-    { address: "0x1234...5678", amount: 100, reputation: 85 },
-    { address: "0x8765...4321", amount: 50, reputation: 92 },
-    { address: "0x2468...1357", amount: 75, reputation: 78 },
-  ];
+  // Replace mockRestakers with real data
+  const { data: restakersInfo } = useQuery({
+    queryKey: ['restakers-info', originalPoint.id],
+    queryFn: () => getRestakersInfo(originalPoint.id),
+    enabled: open && openedFromSlashedIcon
+  });
 
-  const aggregateReputation = useMemo(() => {
-    if (!openedFromSlashedIcon) return 0;
-    
-    const totalStaked = mockRestakers.reduce((sum, r) => sum + r.amount, 0);
-    const weightedRep = mockRestakers.reduce((sum, r) => 
-      sum + (r.reputation * r.amount / totalStaked), 0);
-    
-    return Math.round(weightedRep);
-  }, [openedFromSlashedIcon]);
+  const aggregateReputation = restakersInfo?.aggregateReputation ?? 0;
 
   const effectiveTotalRestaked = totalRestaked || DEFAULT_DOUBT_AMOUNT;
   const effectiveFavorFromRestaking = favorFromRestaking || DEFAULT_DOUBT_AMOUNT;
@@ -805,7 +860,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
       <ReputationAnalysisDialog
         open={showReputationAnalysis}
         onOpenChange={setShowReputationAnalysis}
-        restakers={mockRestakers}
+        restakers={restakersInfo?.restakers ?? []}
         aggregateReputation={aggregateReputation}
       />
     </Dialog>

@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/popover";
 import { useCredInput } from "@/hooks/useCredInput";
 import { usePrivy } from "@privy-io/react-auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToggle } from "@uidotdev/usehooks";
 import { useRouter } from "next/navigation";
 import { RestakeIcon } from "@/components/icons/RestakeIcon";
 import { DoubtIcon } from "@/components/icons/DoubtIcon";
+import { getStakeInfo } from "@/actions/getStakeInfo";
 
 export interface PointCardProps extends HTMLAttributes<HTMLDivElement> {
   pointId: number;
@@ -78,35 +79,31 @@ export const PointCard = ({
   });
   const { push } = useRouter();
 
+  const { data: stakeInfo } = useQuery({
+    queryKey: ['stake-info', parentPoint?.id, pointId, privyUser?.id],
+    queryFn: () => getStakeInfo(parentPoint?.id || 0, pointId, privyUser?.id || ''),
+    enabled: !!parentPoint && !!privyUser?.id
+  });
+
   const restakePercentage = isNegation && parentPoint 
-    ? Math.floor((Number(localStorage.getItem(`restake-${parentPoint.id}-${pointId}`)) || 0) / (parentPoint.viewerCred || 1) * 100)
+    ? Math.floor((stakeInfo?.stakedAmount || 0) / (parentPoint.viewerCred || 1) * 100)
     : 0;
 
   const doubtPercentage = useMemo(() => {
     if (!isNegation || !parentPoint) return 0;
     
-    const doubtKey = `doubt-${parentPoint.id}-${pointId}`;
-    const doubtAmount = Number(localStorage.getItem(doubtKey)) || 0;
+    const doubtAmount = stakeInfo?.doubtAmount || 0;
+    const totalRestaked = stakeInfo?.stakedAmount || 0;
     
     const DEFAULT_DOUBT_AMOUNT = 30;
-    const totalRestaked = Number(localStorage.getItem(`restake-${parentPoint.id}-${pointId}`)) || 0;
     const maxDoubtAmount = Math.floor(
       totalRestaked > 0 
         ? Math.min(parentPoint.viewerCred || 0, totalRestaked)
         : Math.min(parentPoint.viewerCred || 0, DEFAULT_DOUBT_AMOUNT)
     );
     
-    const percentage = Math.floor((doubtAmount / maxDoubtAmount) * 100);
-    
-    console.log('Doubt Debug:', {
-      doubtKey,
-      doubtAmount,
-      maxDoubtAmount,
-      percentage
-    });
-    
-    return percentage;
-  }, [isNegation, parentPoint, pointId]);
+    return Math.floor((doubtAmount / maxDoubtAmount) * 100);
+  }, [isNegation, parentPoint, stakeInfo]);
 
   return (
     <>

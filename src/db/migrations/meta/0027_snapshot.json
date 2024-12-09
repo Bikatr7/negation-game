@@ -1,0 +1,927 @@
+{
+  "id": "14607f15-c702-48fd-a7df-7ebc9c8838d9",
+  "prevId": "f2d184a6-80f0-4844-adbd-22edd45b4f1c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.definitions": {
+      "name": "definitions",
+      "schema": "",
+      "columns": {
+        "term": {
+          "name": "term",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "definition": {
+          "name": "definition",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.doubts": {
+      "name": "doubts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "point_id": {
+          "name": "point_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "negation_id": {
+          "name": "negation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "status": {
+          "name": "status",
+          "type": "doubt_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        }
+      },
+      "indexes": {
+        "doubts_point_id_idx": {
+          "name": "doubts_point_id_idx",
+          "columns": [
+            {
+              "expression": "point_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doubts_negation_id_idx": {
+          "name": "doubts_negation_id_idx",
+          "columns": [
+            {
+              "expression": "negation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doubts_user_id_idx": {
+          "name": "doubts_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "doubts_point_id_points_id_fk": {
+          "name": "doubts_point_id_points_id_fk",
+          "tableFrom": "doubts",
+          "tableTo": "points",
+          "columnsFrom": [
+            "point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "doubts_negation_id_points_id_fk": {
+          "name": "doubts_negation_id_points_id_fk",
+          "tableFrom": "doubts",
+          "tableTo": "points",
+          "columnsFrom": [
+            "negation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "doubts_user_id_users_id_fk": {
+          "name": "doubts_user_id_users_id_fk",
+          "tableFrom": "doubts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "unique_user_doubt": {
+          "name": "unique_user_doubt",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "point_id",
+            "negation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "non_negative_amount": {
+          "name": "non_negative_amount",
+          "value": "\"doubts\".\"amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.embeddings": {
+      "name": "embeddings",
+      "schema": "",
+      "columns": {
+        "point_id": {
+          "name": "point_id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(384)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "embeddings_point_id_points_id_fk": {
+          "name": "embeddings_point_id_points_id_fk",
+          "tableFrom": "embeddings",
+          "tableTo": "points",
+          "columnsFrom": [
+            "point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.endorsements": {
+      "name": "endorsements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "cred": {
+          "name": "cred",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "point_id": {
+          "name": "point_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "endorsements_user_id_index": {
+          "name": "endorsements_user_id_index",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "endorsements_point_id_index": {
+          "name": "endorsements_point_id_index",
+          "columns": [
+            {
+              "expression": "point_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "endorsements_point_id_points_id_fk": {
+          "name": "endorsements_point_id_points_id_fk",
+          "tableFrom": "endorsements",
+          "tableTo": "points",
+          "columnsFrom": [
+            "point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "endorsements_user_id_users_id_fk": {
+          "name": "endorsements_user_id_users_id_fk",
+          "tableFrom": "endorsements",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.negations": {
+      "name": "negations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "older_point_id": {
+          "name": "older_point_id",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "newer_point_id": {
+          "name": "newer_point_id",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "olderPointIndex": {
+          "name": "olderPointIndex",
+          "columns": [
+            {
+              "expression": "older_point_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "newerPointIndex": {
+          "name": "newerPointIndex",
+          "columns": [
+            {
+              "expression": "newer_point_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "negations_older_point_id_points_id_fk": {
+          "name": "negations_older_point_id_points_id_fk",
+          "tableFrom": "negations",
+          "tableTo": "points",
+          "columnsFrom": [
+            "older_point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "negations_newer_point_id_points_id_fk": {
+          "name": "negations_newer_point_id_points_id_fk",
+          "tableFrom": "negations",
+          "tableTo": "points",
+          "columnsFrom": [
+            "newer_point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "negations_created_by_users_id_fk": {
+          "name": "negations_created_by_users_id_fk",
+          "tableFrom": "negations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "uniqueNegation": {
+          "name": "uniqueNegation",
+          "nullsNotDistinct": false,
+          "columns": [
+            "older_point_id",
+            "newer_point_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "olderPointFirst": {
+          "name": "olderPointFirst",
+          "value": "\"negations\".\"older_point_id\" < \"negations\".\"newer_point_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.points": {
+      "name": "points",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "keywords": {
+          "name": "keywords",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[]::text[]"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.restakes": {
+      "name": "restakes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "point_id": {
+          "name": "point_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "negation_id": {
+          "name": "negation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "status": {
+          "name": "status",
+          "type": "stake_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        }
+      },
+      "indexes": {
+        "restakes_point_id_idx": {
+          "name": "restakes_point_id_idx",
+          "columns": [
+            {
+              "expression": "point_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "restakes_negation_id_idx": {
+          "name": "restakes_negation_id_idx",
+          "columns": [
+            {
+              "expression": "negation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "restakes_user_id_idx": {
+          "name": "restakes_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "restakes_point_id_points_id_fk": {
+          "name": "restakes_point_id_points_id_fk",
+          "tableFrom": "restakes",
+          "tableTo": "points",
+          "columnsFrom": [
+            "point_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "restakes_negation_id_points_id_fk": {
+          "name": "restakes_negation_id_points_id_fk",
+          "tableFrom": "restakes",
+          "tableTo": "points",
+          "columnsFrom": [
+            "negation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "restakes_user_id_users_id_fk": {
+          "name": "restakes_user_id_users_id_fk",
+          "tableFrom": "restakes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "unique_user_stake": {
+          "name": "unique_user_stake",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "point_id",
+            "negation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "non_negative_amount": {
+          "name": "non_negative_amount",
+          "value": "\"restakes\".\"amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.slashing_events": {
+      "name": "slashing_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "restake_id": {
+          "name": "restake_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "slashing_restake_id_idx": {
+          "name": "slashing_restake_id_idx",
+          "columns": [
+            {
+              "expression": "restake_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "slashing_user_id_idx": {
+          "name": "slashing_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "slashing_events_restake_id_restakes_id_fk": {
+          "name": "slashing_events_restake_id_restakes_id_fk",
+          "tableFrom": "slashing_events",
+          "tableTo": "restakes",
+          "columnsFrom": [
+            "restake_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "slashing_events_user_id_users_id_fk": {
+          "name": "slashing_events_user_id_users_id_fk",
+          "tableFrom": "slashing_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "non_negative_amount": {
+          "name": "non_negative_amount",
+          "value": "\"slashing_events\".\"amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cred": {
+          "name": "cred",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 200
+        }
+      },
+      "indexes": {
+        "usernameUniqueIndex": {
+          "name": "usernameUniqueIndex",
+          "columns": [
+            {
+              "expression": "lower(\"username\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "noNegativeCred": {
+          "name": "noNegativeCred",
+          "value": "\"users\".\"cred\" >= 0"
+        },
+        "usernameFormat": {
+          "name": "usernameFormat",
+          "value": "LENGTH(\"users\".\"username\") BETWEEN 3 AND 15\n          AND \"users\".\"username\" ~ '^[a-zA-Z0-9][_a-zA-Z0-9]*[a-zA-Z0-9]$'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {
+    "public.point_favor_history": {
+      "columns": {},
+      "definition": "with \"all_events\" as (((((((((select \"id\" as point_id, \"created_at\" as event_time, 'point_created' as event_type from \"points\") union (select \"point_id\" as point_id, \"created_at\" as event_time, 'endorsement_made' as event_type from \"endorsements\")) union (select \"older_point_id\" as point_id, \"created_at\" as event_time, 'negation_made' as event_type from \"negations\")) union (select \"newer_point_id\" as point_id, \"created_at\" as event_time, 'negation_made' as event_type from \"negations\")) union (select CASE \n              WHEN \"negations\".\"older_point_id\" = \"endorsements\".\"point_id\" \n              THEN \"negations\".\"newer_point_id\"\n              ELSE \"negations\".\"older_point_id\"\n            END as point_id, \"endorsements\".\"created_at\" as event_time, 'negation_endorsed' as event_type from \"endorsements\" left join \"negations\" on (\n              (\"negations\".\"older_point_id\" = \"endorsements\".\"point_id\" OR \n               \"negations\".\"newer_point_id\" = \"endorsements\".\"point_id\")\n              AND \"negations\".\"created_at\" <= \"endorsements\".\"created_at\"\n            ))) union (select \"id\" as point_id, NOW() as event_time, 'favor_queried' as event_type from \"points\")) union (select \"point_id\", \"created_at\", 'restake_made' from \"restakes\")) union (select \"point_id\", \"created_at\", 'doubt_placed' from \"doubts\")) union (select \"restakes\".\"point_id\", \"slashing_events\".\"created_at\", 'stake_slashed' from \"slashing_events\" inner join \"restakes\" on \"restakes\".\"id\" = \"slashing_events\".\"restake_id\")) select \"all_events_with_stats\".point_id as \"point_id\", \"all_events_with_stats\".event_type as \"event_type\", \"all_events_with_stats\".event_time as \"event_time\", \"all_events_with_stats\".cred as \"cred\", \"all_events_with_stats\".negations_cred as \"negations_cred\", CAST(\n            CASE\n                WHEN \"all_events_with_stats\".cred = 0 THEN 0\n                WHEN \"all_events_with_stats\".negations_cred = 0 THEN 100\n                ELSE ROUND(100.0 * \"all_events_with_stats\".cred / (\"all_events_with_stats\".cred + \"all_events_with_stats\".negations_cred), 2)\n            END\n        AS NUMERIC) as \"favor\" from (select \"all_events\".point_id as \"point_id\", \"all_events\".event_type as \"event_type\", \"all_events\".event_time as \"event_time\", \n          COALESCE((\n            SELECT SUM(\"cred\")\n            FROM \"endorsements\"\n            WHERE \"point_id\" = \"all_events\".point_id\n            AND \"created_at\" <= \"all_events\".event_time\n          ), 0)\n         as \"cred\", \n          COALESCE((\n            SELECT SUM(\"cred\")\n            FROM \"endorsements\"\n            WHERE \"point_id\" IN (\n              SELECT newer_point_id\n              FROM \"negations\"\n              WHERE older_point_id = \"all_events\".point_id\n              AND \"created_at\" <= \"all_events\".event_time\n              UNION\n              SELECT older_point_id\n              FROM \"negations\"\n              WHERE newer_point_id = \"all_events\".point_id\n              AND \"created_at\" <= \"all_events\".event_time\n            ) AND \"created_at\" <= \"all_events\".event_time\n          ), 0)\n         as \"negations_cred\" from \"all_events\") \"all_events_with_stats\" order by \"all_events_with_stats\".event_time, \"all_events_with_stats\".point_id",
+      "name": "point_favor_history",
+      "schema": "public",
+      "isExisting": false,
+      "materialized": false
+    },
+    "public.point_with_details_view": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "definition": "select \"id\", \"content\", \"created_at\", \"created_by\", \n        COALESCE((\n          SELECT COUNT(*)\n          FROM (\n            SELECT older_point_id AS point_id FROM \"negations\"\n            UNION ALL\n            SELECT newer_point_id AS point_id FROM \"negations\"\n          ) sub\n          WHERE point_id = \"id\"\n        ), 0)\n       as \"amount_negations\", \n        COALESCE((\n          SELECT COUNT(DISTINCT \"user_id\")\n          FROM \"endorsements\"\n          WHERE \"point_id\" = \"id\"\n        ), 0)\n       as \"amount_supporters\", \n        COALESCE((\n          SELECT SUM(\"cred\")\n          FROM \"endorsements\"\n          WHERE \"point_id\" = \"id\"\n        ), 0)\n       as \"cred\", \n        COALESCE((\n          SELECT SUM(\"cred\")\n          FROM \"endorsements\"\n          WHERE \"point_id\" IN (\n            SELECT \"newer_point_id\"\n            FROM \"negations\"\n            WHERE \"older_point_id\" = \"id\"\n            UNION\n            SELECT \"older_point_id\"\n            FROM \"negations\"\n            WHERE \"newer_point_id\" = \"id\"\n          )\n        ), 0)\n       as \"negations_cred\", \n          ARRAY(\n            SELECT \"older_point_id\"\n            FROM \"negations\"\n            WHERE \"newer_point_id\" = \"id\"\n            UNION\n            SELECT \"newer_point_id\"\n            FROM \"negations\"\n            WHERE \"older_point_id\" = \"id\"\n          )\n         as \"negation_ids\", \n          COALESCE((\n            SELECT SUM(\"amount\")\n            FROM \"restakes\"\n            WHERE \"point_id\" = \"id\"\n            AND \"status\" = 'active'\n          ), 0)\n         as \"total_restaked_amount\", \n          COALESCE((\n            SELECT SUM(\"amount\")\n            FROM \"restakes\"\n            WHERE \"point_id\" = \"id\"\n            AND \"status\" = 'active'\n          ), 0)\n         as \"active_restaked_amount\", \n          COALESCE((\n            SELECT SUM(\"amount\")\n            FROM \"doubts\"\n            WHERE \"point_id\" = \"id\"\n            AND \"status\" = 'active'\n          ), 0)\n         as \"total_doubt_amount\", \n          COALESCE((\n            SELECT COUNT(*)\n            FROM \"slashing_events\"\n            JOIN \"restakes\" ON \"id\" = \"restake_id\"\n            WHERE \"point_id\" = \"id\"\n          ), 0)\n         as \"slashing_events_count\" from \"points\"",
+      "name": "point_with_details_view",
+      "schema": "public",
+      "isExisting": false,
+      "materialized": false
+    },
+    "public.restake_details_view": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "definition": "select \"points\".\"id\", COALESCE(SUM(\"restakes\".\"amount\"), 0) as \"total_restaked_amount\", COALESCE(SUM(CASE WHEN \"restakes\".\"status\" = 'active' THEN \"restakes\".\"amount\" ELSE 0 END), 0) as \"active_restaked_amount\", COALESCE(SUM(\"slashing_events\".\"amount\"), 0) as \"slashed_amount\", COUNT(DISTINCT \"restakes\".\"user_id\") as \"unique_restakers_count\", COALESCE(SUM(\"doubts\".\"amount\"), 0) as \"total_doubt_amount\", COUNT(DISTINCT \"doubts\".\"user_id\") as \"unique_doubters_count\", GREATEST(MAX(\"restakes\".\"updated_at\"), MAX(\"doubts\".\"created_at\"), MAX(\"slashing_events\".\"created_at\")) as \"last_activity_timestamp\" from \"points\" left join \"restakes\" on \"restakes\".\"point_id\" = \"points\".\"id\" left join \"doubts\" on \"doubts\".\"point_id\" = \"points\".\"id\" left join \"slashing_events\" on \"slashing_events\".\"restake_id\" = \"restakes\".\"id\" group by \"points\".\"id\"",
+      "name": "restake_details_view",
+      "schema": "public",
+      "isExisting": false,
+      "materialized": false
+    },
+    "public.user_staking_stats_view": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "definition": "select \"users\".\"id\", COALESCE(SUM(\"restakes\".\"amount\"), 0) as \"total_restaked_amount\", COALESCE(SUM(\"doubts\".\"amount\"), 0) as \"total_doubted_amount\", COUNT(CASE WHEN \"restakes\".\"status\" = 'active' THEN 1 END) as \"active_restakes_count\", COUNT(CASE WHEN \"doubts\".\"status\" = 'resolved' THEN 1 END) as \"successful_doubts_count\", COALESCE(SUM(\"slashing_events\".\"amount\"), 0) as \"total_slashed_amount\", EXTRACT(EPOCH FROM AVG(\n        CASE \n          WHEN \"restakes\".\"status\" = 'active' THEN NOW() - \"restakes\".\"created_at\"\n          ELSE \"slashing_events\".\"created_at\" - \"restakes\".\"created_at\"\n        END\n      )) / 86400 as \"average_stake_duration\" from \"users\" left join \"restakes\" on \"restakes\".\"user_id\" = \"users\".\"id\" left join \"doubts\" on \"doubts\".\"user_id\" = \"users\".\"id\" left join \"slashing_events\" on \"slashing_events\".\"user_id\" = \"users\".\"id\" group by \"users\".\"id\"",
+      "name": "user_staking_stats_view",
+      "schema": "public",
+      "isExisting": false,
+      "materialized": false
+    }
+  },
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
