@@ -28,10 +28,9 @@ import { useUser } from "@/hooks/useUser";
 import { cn } from "@/lib/cn";
 import { decodeId } from "@/lib/decodeId";
 import { encodeId } from "@/lib/encodeId";
-import { favor } from "@/lib/negation-game/favor";
 import { TimelineScale, timelineScales } from "@/lib/timelineScale";
 import { usePrivy } from "@privy-io/react-auth";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToggle } from "@uidotdev/usehooks";
 import { useAtomCallback } from "jotai/utils";
 import {
@@ -130,7 +129,7 @@ export default function PointPage({
   const { back, push } = useRouter();
 
   const { data: counterpointSuggestions = [] } = useQuery({
-    queryKey: ["counterpoint-suggestions", point?.pointId],
+    queryKey: ["counterpoint-suggestions", point?.id],
     queryFn: async ({ queryKey: [, pointId] }) => {
       const stream = await getCounterpointSuggestions(pointId as number);
 
@@ -149,7 +148,7 @@ export default function PointPage({
       
       return [];
     },
-    enabled: !!point?.pointId,
+    enabled: !!point?.id,
     staleTime: Infinity,
   });
 
@@ -203,7 +202,7 @@ export default function PointPage({
                   open={selectNegationDialogOpen}
                   onOpenChange={toggleSelectNegationDialog}
                   originalPoint={{
-                    id: point.pointId,
+                    id: point.id,
                     content: point.content,
                     createdAt: point.createdAt,
                     stakedAmount: point.cred,
@@ -212,7 +211,7 @@ export default function PointPage({
                     amountNegations: point.amountNegations,
                     negationsCred: point.negationsCred
                   }}
-                  negationId={point.pointId}
+                  negationId={point.id}
                 />
                 <Popover
                   open={endorsePopoverOpen}
@@ -287,7 +286,7 @@ export default function PointPage({
                   )}
                   onClick={() =>
                     privyUser !== null ? setNegatedPoint({
-                      id: point.pointId,
+                      id: point.id,
                       content: point.content,
                       createdAt: point.createdAt,
                       cred: point.cred
@@ -394,7 +393,7 @@ export default function PointPage({
               <Separator className="my-md" />
               <PointStats
                 className="justify-evenly ~@/lg:~text-xs/sm mb-sm"
-                favor={favor({ ...point })}
+                favor={favorHistory?.length ? Math.floor(favorHistory[favorHistory.length - 1].favor) : 50}
                 amountNegations={point.amountNegations}
                 amountSupporters={point.amountSupporters}
                 cred={point.cred}
@@ -405,61 +404,71 @@ export default function PointPage({
                 <Loader className="absolute left-0 right-0 mx-auto top-[20px] bottom-auto" />
               )}
               {negations &&
-                negations.map((negation, i) => (
-                  <Link
-                    draggable={false}
-                    onClick={preventDefaultIfContainsSelection}
-                    href={`/${encodeId(negation.id)}`}
-                    key={negation.id}
-                    className={cn(
-                      "flex cursor-pointer hover:bg-accent px-4 pt-5 pb-2 border-b"
-                    )}
-                  >
-                    <div className="flex flex-col  items-center">
-                      <CircleXIcon className="shrink-0 size-6 no-scaling-stroke stroke-1 text-muted-foreground " />
-                    </div>
-                    <PointCard
-                      onNegate={(e) => {
-                        e.preventDefault();
-                        user !== null ? setNegatedPoint({
-                          id: negation.id,
-                          content: negation.content,
-                          createdAt: negation.createdAt,
-                          cred: negation.cred
-                        }) : login();
-                      }}
-                      className="flex-grow -mt-3.5 pb-3"
-                      favor={favor({ ...negation })}
-                      content={negation.content}
-                      createdAt={negation.createdAt}
-                      amountSupporters={negation.amountSupporters}
-                      amountNegations={negation.amountNegations}
-                      pointId={negation.id}
-                      totalCred={negation.cred}
-                      viewerContext={{ viewerCred: negation.cred }}
-                      isNegation={true}
-                      parentPoint={{
-                        ...point,
-                        id: point.pointId
-                      }}
-                      onRestake={({openedFromSlashedIcon}) => setRestakePoint({
-                        point: {
+                negations.map((negation) => {
+                  return (
+                    <Link
+                      draggable={false}
+                      onClick={preventDefaultIfContainsSelection}
+                      href={`/${encodeId(negation.id)}`}
+                      key={negation.id}
+                      className={cn(
+                        "flex cursor-pointer hover:bg-accent px-4 pt-5 pb-2 border-b"
+                      )}
+                    >
+                      <div className="flex flex-col  items-center">
+                        <CircleXIcon className="shrink-0 size-6 no-scaling-stroke stroke-1 text-muted-foreground " />
+                      </div>
+                      <PointCard
+                        onNegate={(e) => {
+                          e.preventDefault();
+                          privyUser !== null ? setNegatedPoint({
+                            id: negation.id,
+                            content: negation.content,
+                            createdAt: negation.createdAt,
+                            cred: negation.cred
+                          }) : login();
+                        }}
+                        className="flex-grow -mt-3.5 pb-3"
+                        favor={negation.favor}
+                        content={negation.content}
+                        createdAt={negation.createdAt}
+                        amountSupporters={negation.amountSupporters}
+                        amountNegations={negation.amountNegations}
+                        pointId={negation.id}
+                        totalCred={negation.cred}
+                        viewerContext={{ viewerCred: negation.cred }}
+                        isNegation={true}
+                        parentPoint={{
                           ...point,
-                          stakedAmount: point.cred,
-                          pointId: point.pointId,
-                          id: point.pointId
-                        },
-                        counterPoint: {
-                          ...negation,
-                          stakedAmount: negation.cred,
-                          pointId: negation.id,
-                          id: negation.id
-                        },
-                        openedFromSlashedIcon
-                      })}
-                    />
-                  </Link>
-                ))}
+                          id: point.id
+                        }}
+                        negationId={point.id}
+                        onRestake={({openedFromSlashedIcon}) => {
+                          if (privyUser === null) {
+                            login();
+                            return;
+                          }
+                          setRestakePoint({
+                            point: {
+                              ...point,
+                              stakedAmount: point.cred,
+                              pointId: point.id,
+                              id: point.id
+                            },
+                            counterPoint: {
+                              ...negation,
+                              stakedAmount: negation.cred,
+                              pointId: negation.id,
+                              id: negation.id
+                            },
+                            openedFromSlashedIcon
+                          });
+                        }}
+                        restake={negation.restake}
+                      />
+                    </Link>
+                  );
+                })}
               {!isLoadingNegations && negations?.length === 0 && (
                 <p className="w-full text-center py-md border-b text-muted-foreground">
                   No negations yet
@@ -482,9 +491,9 @@ export default function PointPage({
                           login();
                           return;
                         }
-                        setNegationContent(point.pointId, suggestion);
+                        setNegationContent(point.id, suggestion);
                         setNegatedPoint({
-                          id: point.pointId,
+                          id: point.id,
                           content: point.content,
                           createdAt: point.createdAt,
                           cred: point.cred

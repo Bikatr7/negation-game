@@ -187,8 +187,127 @@
     {
       "idx": 26,
       "version": "7",
-      "when": 1733773219999,
-      "tag": "0026_omniscient_nekra",
+      "when": 1733142266147,
+      "tag": "0026_omniscient_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1733873899916,
+      "tag": "0027_real_zarek",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1733879536902,
+      "tag": "0028_flawless_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1733883063194,
+      "tag": "0029_foamy_clint_barton",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1733954203808,
+      "tag": "0030_heavy_edwin_jarvis",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1733974478430,
+      "tag": "0031_aromatic_psynapse",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1733974971770,
+      "tag": "0032_secret_moira_mactaggert",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1733976280416,
+      "tag": "0033_normal_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1733976616866,
+      "tag": "0034_lyrical_darkstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1734051162857,
+      "tag": "0035_solid_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1734148567415,
+      "tag": "0036_soft_penance",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1734829512810,
+      "tag": "0037_nasty_vulture",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1734835123667,
+      "tag": "0038_silly_champions",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1734839767853,
+      "tag": "0039_pretty_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1735076322604,
+      "tag": "0040_talented_chimera",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1735082833697,
+      "tag": "0041_sparkling_mandarin",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1735876150159,
+      "tag": "0042_yellow_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1736043017804,
+      "tag": "0043_equal_mentallo",
       "breakpoints": true
     }
   ]

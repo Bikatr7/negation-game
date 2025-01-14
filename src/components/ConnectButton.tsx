@@ -14,12 +14,15 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@radix-ui/react-dropdown-menu";
-import { LoaderCircleIcon } from "lucide-react";
+import { LoaderCircleIcon, CoinsIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { EarningsDialog } from "@/components/EarningsDialog";
 
 export const ConnectButton = () => {
   const { login, logout, user: privyUser } = usePrivy();
-
   const { data: user, isLoading } = useUser();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   if (!privyUser)
     return (
@@ -57,24 +60,38 @@ export const ConnectButton = () => {
 
   if (user)
     return (
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button variant={"outline"} key="connect" className="w-36">
-            <p className="overflow-clip max-w-full">{user.username}</p>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          sideOffset={8}
-          className="bg-background border rounded-sm p-md text-sm w-48 shadow-md"
-        >
-          <DropdownMenuLabel>My Account</DropdownMenuLabel>
-          <DropdownMenuLabel className="font-normal text-muted-foreground">
-            {user.cred} cred
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={logout}>Sign out</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant={"outline"} key="connect" className="w-36">
+              <p className="overflow-clip max-w-full">{user.username}</p>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            sideOffset={8}
+            className="bg-background border rounded-sm p-md text-sm w-48 shadow-md"
+          >
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel className="font-normal text-muted-foreground">
+              {user.cred} cred
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={() => setDialogOpen(true)}
+              className="gap-2"
+            >
+              <CoinsIcon className="size-4" />
+              Collect Earnings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={logout}>Sign out</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <EarningsDialog 
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      </>
     );
 };

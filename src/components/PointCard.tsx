@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/popover";
 import { useCredInput } from "@/hooks/useCredInput";
 import { usePrivy } from "@privy-io/react-auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToggle } from "@uidotdev/usehooks";
 import { useRouter } from "next/navigation";
 import { RestakeIcon } from "@/components/icons/RestakeIcon";
 import { DoubtIcon } from "@/components/icons/DoubtIcon";
+import { fetchDoubtForRestake } from "@/actions/fetchDoubtForRestake";
 
 export interface PointCardProps extends HTMLAttributes<HTMLDivElement> {
   pointId: number;
@@ -47,6 +48,16 @@ export interface PointCardProps extends HTMLAttributes<HTMLDivElement> {
   };
   onRestake?: (options: { openedFromSlashedIcon: boolean }) => void;
   negationId?: number;
+  restake?: {
+    id: number | null;
+    amount: number;
+    active: boolean;
+    isOwner: boolean;
+    totalRestakeAmount: number;
+    originalAmount?: number | null;
+    slashedAmount: number;
+    doubtedAmount: number;
+  } | null;
 }
 
 export const PointCard = ({
@@ -64,6 +75,7 @@ export const PointCard = ({
   parentPoint,
   onRestake,
   negationId,
+  restake,
   ...props
 }: PointCardProps) => {
   const endorsedByViewer =
@@ -78,35 +90,24 @@ export const PointCard = ({
   });
   const { push } = useRouter();
 
-  const restakePercentage = isNegation && parentPoint 
-    ? Math.floor((Number(localStorage.getItem(`restake-${parentPoint.id}-${pointId}`)) || 0) / (parentPoint.viewerCred || 1) * 100)
-    : 0;
+  const restakePercentage = useMemo(() => {
+    if (!isNegation || !parentPoint || !restake?.amount) return 0;
+    return Math.round((restake.amount / (parentPoint.viewerCred || 1)) * 100);
+  }, [isNegation, parentPoint, restake]);
+
+  const { data: existingDoubt } = useQuery({
+    queryKey: ['doubt', parentPoint?.id, pointId],
+    queryFn: () => parentPoint?.id ? fetchDoubtForRestake(parentPoint.id, pointId) : null,
+    enabled: !!parentPoint?.id && !!pointId,
+    staleTime: 1000 * 60 * 5 // 5 minutes
+  });
 
   const doubtPercentage = useMemo(() => {
-    if (!isNegation || !parentPoint) return 0;
+    if (!isNegation || !restake?.amount || !existingDoubt?.amount) return 0;
     
-    const doubtKey = `doubt-${parentPoint.id}-${pointId}`;
-    const doubtAmount = Number(localStorage.getItem(doubtKey)) || 0;
-    
-    const DEFAULT_DOUBT_AMOUNT = 30;
-    const totalRestaked = Number(localStorage.getItem(`restake-${parentPoint.id}-${pointId}`)) || 0;
-    const maxDoubtAmount = Math.floor(
-      totalRestaked > 0 
-        ? Math.min(parentPoint.viewerCred || 0, totalRestaked)
-        : Math.min(parentPoint.viewerCred || 0, DEFAULT_DOUBT_AMOUNT)
-    );
-    
-    const percentage = Math.floor((doubtAmount / maxDoubtAmount) * 100);
-    
-    console.log('Doubt Debug:', {
-      doubtKey,
-      doubtAmount,
-      maxDoubtAmount,
-      percentage
-    });
-    
-    return percentage;
-  }, [isNegation, parentPoint, pointId]);
+    const totalRestaked = restake.totalRestakeAmount;
+    return Math.floor((existingDoubt.amount / totalRestaked) * 100);
+  }, [isNegation, restake, existingDoubt]);
 
   return (
     <>
@@ -205,7 +206,7 @@ export const PointCard = ({
                     variant="ghost"
                     className={cn(
                       "p-1 -mb-2 rounded-full size-fit hover:bg-muted/30",
-                      restakePercentage > 0 && "text-endorsed"
+                      restake?.isOwner && restake?.amount && "text-endorsed"
                     )}
                     onClick={(e) => {
                       e.preventDefault();
@@ -214,8 +215,11 @@ export const PointCard = ({
                     }}
                   >
                     <RestakeIcon 
-                      className={restakePercentage > 0 ? "fill-current" : ""} 
-                      showPercentage={restakePercentage > 0}
+                      className={cn(
+                        "size-5 stroke-1",
+                        restake?.isOwner && restake?.amount && "fill-current text-endorsed"
+                      )}
+                      showPercentage={restake?.isOwner && !!restake?.amount}
                       percentage={restakePercentage}
                     />
                   </Button>
@@ -223,12 +227,11 @@ export const PointCard = ({
                     variant="ghost"
                     className={cn(
                       "p-1 -mb-2 rounded-full size-fit hover:bg-muted/30",
-                      doubtPercentage > 0 && "text-endorsed"
+                      existingDoubt?.isUserDoubt && "text-endorsed"
                     )}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('Doubt button clicked', { doubtPercentage });
                       onRestake?.({openedFromSlashedIcon: true});
                     }}
                   >
@@ -236,11 +239,11 @@ export const PointCard = ({
                       <DoubtIcon 
                         className={cn(
                           "size-5 stroke-1",
-                          doubtPercentage > 0 && "fill-current"
+                          existingDoubt?.isUserDoubt && "fill-current"
                         )} 
-                        isFilled={doubtPercentage > 0}
+                        isFilled={existingDoubt?.isUserDoubt}
                       />
-                      {doubtPercentage > 0 && (
+                      {existingDoubt?.isUserDoubt && (
                         <span className="ml-1">{doubtPercentage}%</span>
                       )}
                     </div>

@@ -20,10 +20,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { timelineScales } from "@/lib/timelineScale";
 import { PointStats } from "@/components/PointStats";
-import { favor } from "@/lib/negation-game/favor";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { ReputationAnalysisDialog } from "./ReputationAnalysisDialog";
+import { restake } from "@/actions/restake";
+import { slash } from "@/actions/slash";
+import { fetchRestakeForPoints } from "@/actions/fetchRestakeForPoints";
+import { doubt } from "@/actions/doubt";
+import { fetchDoubtForRestake } from "@/actions/fetchDoubtForRestake";
+import { getUserId } from "@/actions/getUserId";
+import { useUser } from "@/hooks/useUser";
+import { fetchRestakerReputation } from "@/actions/fetchRestakerReputation";
 
 export interface RestakeDialogProps extends DialogProps {
   originalPoint: {
@@ -36,6 +43,20 @@ export interface RestakeDialogProps extends DialogProps {
     negationsCred: number;
     amountSupporters: number;
     amountNegations: number;
+    favor?: number;
+    restake?: {
+      id: number;
+      amount: number;
+      active: boolean;
+      originalAmount: number;
+      slashedAmount: number;
+      doubtedAmount: number;
+    } | null;
+    slash?: {
+      id: number;
+      amount: number;
+      active: boolean;
+    } | null;
   };
   counterPoint: {
     id: number;
@@ -52,6 +73,18 @@ type RestakerInfo = {
   reputation: number;
 };
 
+type RestakeResponse = {
+  id?: number;
+  userId?: string;
+  effectiveAmount?: number;
+  amount?: number;
+  slashedAmount?: number;
+  doubtedAmount?: number;
+  isActive?: boolean;
+  totalRestakeAmount: number;
+  isUserRestake: boolean;
+};
+
 export const RestakeDialog: FC<RestakeDialogProps> = ({
   originalPoint,
   counterPoint,
@@ -61,42 +94,23 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
   openedFromSlashedIcon,
   ...props
 }) => {
-  // Get existing restake amount from localStorage (in cred)
-  const existingRestakeKey = `restake-${originalPoint.id}-${counterPoint.id}`;
-  const existingStakedCred = Number(localStorage.getItem(existingRestakeKey)) || 0;
-  
-  // Get total restaked amount from all restakers (sum of all localStorage entries)
-  const totalRestaked = useMemo(() => {
-    // In reality this would come from the database
-    // For now simulate with localStorage
-    return existingStakedCred; // This is just one restaker's amount for now
-  }, [existingStakedCred]);
+  // Core data fetching hooks
+  const { data: existingRestake } = useQuery<RestakeResponse | null>({
+    queryKey: ['restake', originalPoint.id, counterPoint.id],
+    queryFn: () => fetchRestakeForPoints(originalPoint.id, counterPoint.id)
+  });
 
-  const DEFAULT_DOUBT_AMOUNT = 30; 
-  const maxStakeAmount = Math.floor(openedFromSlashedIcon 
-    ? totalRestaked > 0 
-      ? Math.min(originalPoint.viewerCred || 0, totalRestaked)  // Cap by total restaked when doubting
-      : Math.min(originalPoint.viewerCred || 0, DEFAULT_DOUBT_AMOUNT) // Use default amount if no restakes
-    : (originalPoint.viewerCred || 0)
-  );
+  const { data: existingDoubt } = useQuery({
+    queryKey: ['doubt', originalPoint.id, counterPoint.id],
+    queryFn: () => fetchDoubtForRestake(originalPoint.id, counterPoint.id),
+    enabled: !!originalPoint.id && !!counterPoint.id
+  });
 
-  // Get favor from restaking from localStorage
-  const favorFromRestaking = useMemo(() => {
-    // In reality this would come from the database
-    // For now simulate with localStorage - assume 1:1 ratio for demo
-    return existingStakedCred;
-  }, [existingStakedCred]);
-
-  const [stakedCred, setStakedCred] = useState(
-    openedFromSlashedIcon ? 0 : existingStakedCred
-  );
+  // State management hooks
+  const [stakedCred, setStakedCred] = useState(0);
   const [isSlashing, setIsSlashing] = useState(false);
   const [timelineScale, setTimelineScale] = useState<TimelineScale>(DEFAULT_TIMESCALE);
   const [endorsePopoverOpen, toggleEndorsePopoverOpen] = useToggle(false);
-  const { cred, setCred, notEnoughCred } = useCredInput({
-    resetWhen: !endorsePopoverOpen,
-  });
-  const queryClient = useQueryClient();
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedValues, setSubmittedValues] = useState<{
     slashAmount: number;
@@ -108,6 +122,23 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     isSlashing: boolean;
   } | null>(null);
   const [showReputationAnalysis, setShowReputationAnalysis] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [endorsementReduced, setEndorsementReduced] = useState(false);
+
+  // Derived values
+  const currentlyStaked = existingRestake?.isUserRestake 
+    ? (existingRestake.effectiveAmount ?? 0)
+    : 0;
+  console.log('currentlyStaked:', currentlyStaked, 'existingRestake:', existingRestake);
+
+  const { data: negationFavorHistory } = useQuery({
+    queryKey: ["favor-history", counterPoint.id, timelineScale],
+    queryFn: () => fetchFavorHistory({ 
+      pointId: counterPoint.id, 
+      scale: timelineScale 
+    }),
+    enabled: open,
+  });
 
   const { data: favorHistory, isLoading: isLoadingHistory } = useQuery({
     queryKey: ["favor-history", originalPoint.id, timelineScale],
@@ -118,110 +149,127 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     enabled: open,
   });
 
-  const currentlyStaked = existingStakedCred;
-  const newStakeAmount = stakedCred;
-
-  const slashAmount = isSlashing ? Math.floor(currentlyStaked - newStakeAmount) : 0;
-  const stakeAmount = isSlashing ? 0 : Math.floor(newStakeAmount);
-  
-  const bonusFavor = Math.floor(isSlashing ? slashAmount : stakeAmount);
-
-  // Get the current favor from the last data point
-  const currentFavor = favorHistory?.length ? favorHistory[favorHistory.length - 1].favor : 50;
-  
-  const handleSliderChange = useCallback((values: number[]) => {
-    const newStakedCred = Math.floor(values[0]);
-    setStakedCred(newStakedCred);
-    setIsSlashing(openedFromSlashedIcon ? false : newStakedCred < existingStakedCred);
-  }, [existingStakedCred, openedFromSlashedIcon]);
-
-  const projectedData = favorHistory ? [
-    ...favorHistory,
-    {
-      timestamp: new Date(Date.now() + 8000),
-      favor: currentFavor + (openedFromSlashedIcon ? -bonusFavor : (isSlashing ? -bonusFavor : bonusFavor)),
-      isProjection: true
+  useEffect(() => {
+    if (!existingRestake?.isUserRestake) {
+      setIsSlashing(false);
     }
-  ] : [];
+  }, [existingRestake?.isUserRestake]);
 
-  // Reset states when dialog closes
+  // Set initial stakedCred when dialog opens
+  useEffect(() => {
+    if (open) {
+      setStakedCred(
+        openedFromSlashedIcon 
+          ? (existingDoubt?.userAmount ?? 0)  // Use existing doubt amount if it exists
+          : currentlyStaked
+      );
+    }
+  }, [open, currentlyStaked, openedFromSlashedIcon, existingDoubt?.userAmount]);
+
   useEffect(() => {
     if (!open) {
-      setStakedCred(existingStakedCred);
+      setStakedCred(currentlyStaked);
       setShowSuccess(false);
       setIsSlashing(false);
     }
-  }, [open, existingStakedCred]);
+  }, [open, currentlyStaked]);
 
-  const handleSubmit = () => {
-    if (openedFromSlashedIcon) {
-      const doubtKey = `doubt-${originalPoint.id}-${counterPoint.id}`;
-      localStorage.setItem(doubtKey, stakedCred.toString());
-    } else {
-      const restakeKey = `restake-${originalPoint.id}-${counterPoint.id}`;
-      localStorage.setItem(restakeKey, stakedCred.toString());
-    }
-    
-    setSubmittedValues({
-      slashAmount,
-      stakeAmount,
-      currentlyStaked,
-      maxStakeAmount,
-      stakePercentage: Math.round((stakedCred / maxStakeAmount) * 100),
-      bonusFavor,
-      isSlashing
-    });
-    
-    setShowSuccess(true);
-  };
+    // After fetching the current endorsement amount, compare it with existing restake/doubt
+    useEffect(() => {
+      if (existingRestake?.amount && originalPoint.viewerCred) {
+        // If current endorsement is less than existing restake/doubt
+        if (originalPoint.viewerCred < existingRestake.amount) {
+          setEndorsementReduced(true);
+        }
+      }
+    }, [existingRestake?.amount, originalPoint.viewerCred]);
 
-  // Add new calculation for doubt APY
-  const doubtApy = useMemo(() => {
-    if (!openedFromSlashedIcon) return 0;
-    // Calculate APY based on staked amount
-    // This is a placeholder calculation - we need to implement actual APY logic
-    return Math.floor((stakedCred / maxStakeAmount) * 100);
-  }, [openedFromSlashedIcon, stakedCred, maxStakeAmount]);
+  // User data and authentication
+  const { data: userId, isLoading: isLoadingUserId } = useQuery({
+    queryKey: ['userId'],
+    queryFn: getUserId
+  });
 
-  const mockRestakers: RestakerInfo[] = [
-    { address: "0x1234...5678", amount: 100, reputation: 85 },
-    { address: "0x8765...4321", amount: 50, reputation: 92 },
-    { address: "0x2468...1357", amount: 75, reputation: 78 },
-  ];
+  const { data: user, isLoading: isLoadingUser } = useUser();
+  const queryClient = useQueryClient();
+  const { cred, setCred, notEnoughCred } = useCredInput({
+    resetWhen: !endorsePopoverOpen,
+  });
 
-  const aggregateReputation = useMemo(() => {
-    if (!openedFromSlashedIcon) return 0;
-    
-    const totalStaked = mockRestakers.reduce((sum, r) => sum + r.amount, 0);
-    const weightedRep = mockRestakers.reduce((sum, r) => 
-      sum + (r.reputation * r.amount / totalStaked), 0);
-    
-    return Math.round(weightedRep);
-  }, [openedFromSlashedIcon]);
+  // Derived state calculations
+  const isUserRestake = useMemo(() => existingRestake?.userId === userId, [existingRestake?.userId, userId]);
 
-  const effectiveTotalRestaked = totalRestaked || DEFAULT_DOUBT_AMOUNT;
-  const effectiveFavorFromRestaking = favorFromRestaking || DEFAULT_DOUBT_AMOUNT;
+  // Get favor from restaking
+  const favorFromRestaking = useMemo(() => {
+    return existingRestake?.effectiveAmount || 0;
+  }, [existingRestake]);
+
+  // Check if user can place a doubt
+  const canDoubt = useMemo(() => {
+    if (!openedFromSlashedIcon) return true; // Not in doubt mode
+    if (isLoadingUserId) return false; // Still loading user
+    if (!existingRestake?.totalRestakeAmount) return false; // No active restakes to doubt
+    if (!userId) return false; // No user logged in
+    return true;
+  }, [openedFromSlashedIcon, existingRestake?.totalRestakeAmount, userId, isLoadingUserId]);
+
+  const favorReduced = stakedCred;
+
+  const effectiveTotalRestaked = existingRestake?.effectiveAmount || 0;
+  const effectiveFavorFromRestaking = favorFromRestaking || 0;
   const totalDoubt = stakedCred;
 
-  // Recalculate daily earnings and APY
-  const dailyEarnings = useMemo(() => {
+  const hourlyRate = useMemo(() => {
     if (!openedFromSlashedIcon || stakedCred === 0) return 0;
     
-    // Base rate of 0.3 cred per day per cred doubted
-    // Decreases as you doubt more (diminishing returns)
-    const baseRate = 0.3;
-    const diminishingFactor = 1 - (stakedCred / maxStakeAmount) * 0.5; // 50% reduction at max doubt
-    return Math.floor(stakedCred * baseRate * diminishingFactor * 100) / 100;
-  }, [stakedCred, maxStakeAmount, openedFromSlashedIcon]);
+    // Base APY of 5%
+    const baseAPY = 0.05;
+    
+    // Get current favor of negation point
+    const negationFavor = favorHistory?.length 
+      ? favorHistory[favorHistory.length - 1].favor 
+      : 0;
 
-  // Calculate APY based on daily earnings
+    // APY modulation: e^(ln(APY) + ln(current favor + 0.0001))
+    const modifiedAPY = Math.exp(
+      Math.log(baseAPY) + 
+      Math.log(negationFavor + 0.0001)
+    );
+
+    // hourly_rate = (APY * doubt_amount) / (365 * 24)
+    return (modifiedAPY * stakedCred) / (365 * 24);
+  }, [openedFromSlashedIcon, stakedCred, favorHistory]);
+
+  // Calculate daily and yearly earnings
+  const dailyEarnings = useMemo(() => {
+    return Math.round(hourlyRate * 24 * 100) / 100;
+  }, [hourlyRate]);
+
+  // Calculate APY
   const apy = useMemo(() => {
     if (stakedCred === 0) return 0;
-    return Math.floor((dailyEarnings * 365 / stakedCred) * 100);
-  }, [dailyEarnings, stakedCred]);
+    
+    const negationFavor = negationFavorHistory?.length 
+      ? negationFavorHistory[negationFavorHistory.length - 1].favor 
+      : 0;
 
-  // Calculate favor impact
-  const favorReduced = stakedCred;
+    console.log('APY calculation:', {
+      stakedCred,
+      negationFavor,
+      baseAPY: 0.05,
+      logBaseAPY: Math.log(0.05),
+      logNegationFavor: Math.log(negationFavor + 0.0001),
+      modifiedAPY: Math.exp(Math.log(0.05) + Math.log(negationFavor + 0.0001))
+    });
+
+    const modifiedAPY = Math.exp(
+      Math.log(0.05) + 
+      Math.log(negationFavor + 0.0001)
+    );
+
+    return Math.round(modifiedAPY * 100);
+  }, [stakedCred, negationFavorHistory]);
+
   const resultingFavor = Math.max(0, effectiveFavorFromRestaking - favorReduced);
 
   const paybackPeriod = useMemo(() => {
@@ -229,7 +277,160 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     return Math.ceil(stakedCred / dailyEarnings);
   }, [dailyEarnings, stakedCred]);
 
-  if (maxStakeAmount === 0) {
+  const isUserDoubt = useMemo(() => {
+    return existingDoubt?.isUserDoubt ?? false;
+  }, [existingDoubt?.isUserDoubt]);
+
+  const { data: reputationData } = useQuery({
+    queryKey: ['restaker-reputation', originalPoint.id, counterPoint.id],
+    queryFn: () => fetchRestakerReputation(originalPoint.id, counterPoint.id),
+    enabled: open
+  });
+
+  const handleSliderChange = useCallback((values: number[]) => {
+    // If in doubt mode and user has their own doubt, don't allow changes
+    if (openedFromSlashedIcon && existingDoubt?.isUserDoubt) {
+      return;
+    }
+    
+    const newStakedCred = Math.floor(values[0]);
+    setStakedCred(newStakedCred);
+    setIsSlashing(openedFromSlashedIcon ? false : newStakedCred < currentlyStaked);
+  }, [currentlyStaked, openedFromSlashedIcon, existingDoubt]);
+
+  // Loading state handler
+  if (isLoadingUser) {
+    return (
+      <Dialog {...props} open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex items-center justify-center p-6">
+          <Loader className="size-6" />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Calculate maximum stake amount based on mode and constraints
+  const maxStakeAmount = Math.floor(openedFromSlashedIcon 
+    ? canDoubt 
+      ? Math.min(
+          originalPoint.stakedAmount || 0,
+          existingRestake?.totalRestakeAmount ?? 0,
+          user?.cred ?? 0,
+          originalPoint.viewerCred ?? 0
+        )
+      : 0
+    : Math.min(
+        (user?.cred ?? 0) + (currentlyStaked), 
+        originalPoint.viewerCred ?? 0
+      )
+  );
+
+  const newStakeAmount = stakedCred;
+
+  const slashAmount = isSlashing ? 
+    Math.min(
+      Math.floor(currentlyStaked - newStakeAmount),
+      originalPoint.viewerCred ?? 0  // Cap slash at current endorsement
+    ) : 0;
+
+  const stakeAmount = isSlashing ? 0 : Math.floor(newStakeAmount);
+  
+  // Calculate the delta between new stake and current stake
+  const bonusFavor = Math.floor(isSlashing ? 
+    Math.max(0, (existingDoubt?.amount || 0) - slashAmount) : // doubt - slash
+    (stakeAmount - currentlyStaked)
+  );
+
+  // Get the current favor from the last data point
+  const currentFavor = favorHistory?.length ? favorHistory[favorHistory.length - 1].favor : 50;
+  
+  const favorImpact = openedFromSlashedIcon ? 
+    favorReduced : // Doubting
+    isSlashing ? 
+      Math.max(0, slashAmount - (existingDoubt?.amount || 0)) :
+      bonusFavor; // Restaking
+
+  const projectedData = favorHistory ? [
+    ...favorHistory,
+    {
+      timestamp: new Date(Date.now() + 8000),
+      favor: currentFavor + (
+        openedFromSlashedIcon ? 
+          existingDoubt?.isUserDoubt ? 
+            -(stakedCred - existingDoubt.userAmount) : // Show only the change from user's current doubt
+            -stakedCred :  // No existing user doubt, show full new doubt
+          isSlashing ? 
+            -favorImpact : 
+            favorImpact
+      ),
+      isProjection: true
+    }
+  ] : [];
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+
+    try {
+      if (openedFromSlashedIcon) {
+        await doubt({
+          pointId: originalPoint.id,
+          negationId: counterPoint.id,
+          amount: stakedCred
+        });
+      } else {
+        if (isSlashing) {
+          await slash({
+            pointId: originalPoint.id,
+            negationId: counterPoint.id,
+            amount: slashAmount
+          });
+        } else {
+          await restake({
+            pointId: originalPoint.id,
+            negationId: counterPoint.id,
+            amount: stakedCred
+          });
+        }
+      }
+      
+      setSubmittedValues({
+        slashAmount,
+        stakeAmount,
+        currentlyStaked,
+        maxStakeAmount,
+        stakePercentage: Math.round((stakedCred / maxStakeAmount) * 100),
+        bonusFavor,
+        isSlashing
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ['restake']
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['point']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['doubt']
+      });
+      
+      setShowSuccess(true);
+    } catch (error) {
+      queryClient.invalidateQueries({
+        queryKey: ['restake', originalPoint.id, counterPoint.id]
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Add info message when hitting cred limit
+  const showCredLimitMessage = stakedCred === user?.cred && stakedCred < (
+    openedFromSlashedIcon 
+      ? Math.min(originalPoint.stakedAmount || 0, Number(existingRestake?.totalRestakeAmount ?? 0))
+      : originalPoint.viewerCred || 0
+  );
+
+  if ((originalPoint.viewerCred || 0) === 0 && !openedFromSlashedIcon) {
     return (
       <Dialog {...props} open={open} onOpenChange={onOpenChange}>
         <DialogContent 
@@ -244,9 +445,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                   <ArrowLeftIcon className="size-5" />
                 </Button>
               </DialogClose>
-              <DialogTitle>
-                {openedFromSlashedIcon ? "Cannot Doubt" : "Cannot Restake"}
-              </DialogTitle>
+              <DialogTitle>Cannot Restake</DialogTitle>
             </div>
           </div>
 
@@ -288,6 +487,21 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (isLoadingUserId) {
+    return (
+      <Dialog {...props} open={open} onOpenChange={onOpenChange}>
+        <DialogContent 
+          className="flex flex-col items-center justify-center gap-4 p-4 sm:p-6 max-w-xl min-h-[200px]"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DialogTitle className="sr-only">Loading</DialogTitle>
+          <Loader className="size-8" />
         </DialogContent>
       </Dialog>
     );
@@ -403,6 +617,67 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     );
   }
 
+  if (openedFromSlashedIcon && !existingRestake) {
+    return (
+      <Dialog {...props} open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex flex-col gap-6 p-4 sm:p-6 max-w-xl">
+          <div className="flex items-center gap-2">
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" className="text-primary">
+                <ArrowLeftIcon className="size-5" />
+              </Button>
+            </DialogClose>
+            <DialogTitle>Nothing to Doubt</DialogTitle>
+          </div>
+
+          <div className="flex flex-col items-center text-center gap-4">
+            <div className="space-y-2">
+              <p className="text-muted-foreground">
+                There are no active restakes to doubt for this point-negation pair.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You can only place doubts against existing restakes.
+              </p>
+            </div>
+          </div>
+
+          <Button variant="outline" onClick={() => onOpenChange?.(false)}>
+            Close
+          </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (openedFromSlashedIcon && !canDoubt) {
+    return (
+      <Dialog {...props} open={open} onOpenChange={onOpenChange}>
+        <DialogContent 
+          className="flex flex-col gap-4 p-4 sm:p-6 max-w-xl"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-2 pb-2 border-b">
+            <div className="flex items-center gap-2">
+              <DialogClose asChild>
+                <Button variant="ghost" size="icon" className="text-primary">
+                  <ArrowLeftIcon className="size-5" />
+                </Button>
+              </DialogClose>
+              <DialogTitle>Cannot Doubt</DialogTitle>
+            </div>
+          </div>
+          <p className="text-muted-foreground">
+            There are no active restakes to doubt.
+          </p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Log when component renders
+  console.log('RestakeDialog render - stakedCred:', stakedCred, 'currentlyStaked:', currentlyStaked);
+
   return (
     <Dialog {...props} open={open} onOpenChange={onOpenChange}>
       <DialogContent 
@@ -489,7 +764,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                     {format(originalPoint.createdAt, "h':'mm a '·' MMM d',' yyyy")}
                   </span>
                   <span className="inline-flex px-3 py-1 rounded-full bg-endorsed/10 text-endorsed text-sm">
-                    {favor({ cred: originalPoint.cred, negationsCred: originalPoint.negationsCred })} favor
+                    {favorHistory?.length ? favorHistory[favorHistory.length - 1].favor : 50} favor
                   </span>
                 </div>
               </div>
@@ -555,7 +830,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                     <span className="text-xs font-medium">APY</span>
                     <div className="mt-2 space-y-0.5">
                       <div className="text-lg text-endorsed">{apy}%</div>
-                      <div className="text-sm text-muted-foreground">{dailyEarnings} cred/day</div>
+                      <div className="text-sm text-muted-foreground">{dailyEarnings.toFixed(2)} cred/day</div>
                     </div>
                   </div>
                 </div>
@@ -569,21 +844,21 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                   </div>
                 )}
 
-                {/* Reputation Row - Full width */}
+                {/* Reputation Section */}
                 <div 
                   className="flex items-center justify-between p-3 bg-muted/40 rounded-lg cursor-pointer hover:bg-muted/60"
                   onClick={() => setShowReputationAnalysis(true)}
                 >
                   <div>
                     <span className="text-xs font-medium">Restaker Reputation</span>
-                    <div className="text-lg mt-1">{aggregateReputation}%</div>
+                    <div className="text-lg mt-1">{reputationData?.aggregateReputation ?? 50}%</div>
                   </div>
                   <span className="text-muted-foreground">→</span>
                 </div>
               </div>
             )}
 
-            {/* Timeline Controls */}
+            {/* Timeline */}
             <div className="flex justify-between items-center pb-2">
               <ToggleGroup
                 type="single"
@@ -609,7 +884,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               />
             </div>
 
-            {/* Graph Section */}
+            {/* Graph */}
             <div className="w-full h-32 relative bg-background">
               {isLoadingHistory ? (
                 <Loader className="absolute left-0 right-0 mx-auto top-[20px]" />
@@ -644,7 +919,9 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                           const isLastPoint = index === projectedData.length - 1;
                           if (!isLastPoint) return <g key={`dot-${index}`} />;
 
-                          const textY = isSlashing ? cy + 15 : cy - 10;
+                          const textY = (openedFromSlashedIcon || isSlashing) ? cy + 20 : cy - 10;
+                          const textX = cx + (openedFromSlashedIcon ? -35 : (isSlashing ? 30 : -35));
+                          const textAnchor = openedFromSlashedIcon ? "start" : (isSlashing ? "end" : "start");
 
                           return (
                             <g key={`dot-${index}`}>
@@ -655,15 +932,20 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                                 fill="currentColor" 
                                 className="animate-none text-endorsed"
                               />
-                              {bonusFavor > 0 && (
+                              {(favorReduced > 0 || stakeAmount > 0 || slashAmount > 0) && (
                                 <text
-                                  x={cx + (openedFromSlashedIcon ? -35 : (isSlashing ? 30 : -35))}
-                                  y={openedFromSlashedIcon ? cy + 20 : textY}
-                                  textAnchor={openedFromSlashedIcon ? "start" : (isSlashing ? "end" : "start")}
+                                  x={textX}
+                                  y={textY}
+                                  textAnchor={textAnchor}
                                   fill="currentColor"
                                   className="text-xs whitespace-nowrap animate-none text-endorsed"
                                 >
-                                  {openedFromSlashedIcon ? `-${bonusFavor}` : (isSlashing ? `-${bonusFavor}` : `+${bonusFavor}`)} favor
+                                  {openedFromSlashedIcon ? 
+                                    `-${favorReduced}` :  // Doubting
+                                    isSlashing ? 
+                                      `-${favorImpact}` :  // Changed from slashAmount to favorImpact
+                                      `+${stakeAmount}`    // Restaking
+                                  } favor
                                 </text>
                               )}
                             </g>
@@ -683,10 +965,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
             <div className="border-t pt-2">
               <PointStats
                 className="justify-evenly ~@/lg:~text-xs/sm"
-                favor={favor({ 
-                  cred: originalPoint.cred,
-                  negationsCred: originalPoint.negationsCred
-                })}
+                favor={favorHistory?.length ? favorHistory[favorHistory.length - 1].favor : 50}
                 amountNegations={originalPoint.amountNegations}
                 amountSupporters={originalPoint.amountSupporters}
                 cred={originalPoint.cred}
@@ -696,11 +975,54 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
 
             {/* Warnings */}
             {!openedFromSlashedIcon && isSlashing && (
-              <div className="flex items-center gap-2 text-sm bg-yellow-500 dark:bg-yellow-500/90 text-black dark:text-white rounded-md p-3">
+              <div className="flex items-center gap-2 text-sm bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-md p-3">
                 <AlertCircle className="size-4 shrink-0" />
                 <p>
                   Reducing your stake will slash your restaked cred from the original point. 
-                  You&apos;ll give up {existingStakedCred - stakedCred} cred.
+                  You&apos;ll give up {currentlyStaked - stakedCred} cred.
+                </p>
+              </div>
+            )}
+
+            {!openedFromSlashedIcon && isSlashing && (existingDoubt?.amount ?? 0) > 0 && (
+              <div className="flex items-center gap-2 text-sm bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-md p-3">
+                <InfoIcon className="size-4 shrink-0" />
+                <p>
+                  Due to existing doubts ({existingDoubt?.amount ?? 0} cred)
+                  {isUserDoubt ? ` (including your ${existingDoubt?.userAmount ?? 0} cred doubt)` : ""}, 
+                  slashing will only reduce favor by {favorImpact} instead of {slashAmount}
+                </p>
+              </div>
+            )}
+
+            {showCredLimitMessage && (
+              <div className="flex items-center gap-2 text-sm bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-md p-3">
+                <InfoIcon className="size-4 shrink-0" />
+                <p>
+                  {openedFromSlashedIcon ? "Doubt" : "Stake"} amount limited by your available cred ({user?.cred} cred)
+                </p>
+              </div>
+            )}
+
+            {endorsementReduced && (
+              <div className="flex items-center gap-2 text-sm bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-md p-3">
+                <AlertCircle className="size-4 shrink-0" />
+                <p>
+                  {openedFromSlashedIcon ? 
+                    "The maximum doubt amount has been reduced because some endorsement cred was used for doubt payouts." :
+                    isSlashing ?
+                      "You can still slash your restake, but the maximum amount has been reduced due to endorsement payouts." :
+                      "The maximum restake amount has been reduced because some endorsement cred was used for doubt payouts."
+                  }
+                </p>
+              </div>
+            )}
+
+            {isSlashing && endorsementReduced && (
+              <div className="flex items-center gap-2 text-sm bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-md p-3">
+                <AlertCircle className="size-4 shrink-0" />
+                <p>
+                  Your maximum slash amount has been reduced to {originalPoint.viewerCred} cred due to endorsement payouts.
                 </p>
               </div>
             )}
@@ -709,12 +1031,14 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               {openedFromSlashedIcon ? (
                 `You are placing ${stakeAmount} cred in doubt of...`
               ) : isSlashing ? (
-                `You are losing ${slashAmount} cred for slashing...`
+                `You are losing ${slashAmount} cred for slashing${(existingDoubt?.amount ?? 0) > 0 ? 
+                  ` (doubters will also lose ${Math.min(slashAmount, existingDoubt?.amount ?? 0)} cred)` : 
+                  ''
+                }...`
               ) : (
                 `You would relinquish ${stakeAmount} cred if you learned...`
               )}
             </p>
-
             {/* Credibility Section with Date */}
             <div className="p-4 rounded-lg border border-dashed border-border hover:bg-muted cursor-pointer">
               <p className="text-base">{counterPoint.content}</p>
@@ -722,9 +1046,26 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                 {format(counterPoint.createdAt, "h':'mm a '·' MMM d',' yyyy")}
               </span>
             </div>
+
+            {openedFromSlashedIcon && (
+              <div className="space-y-2 mt-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Estimated Daily Earnings</span>
+                  <span>{dailyEarnings.toFixed(2)} cred</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">APY</span>
+                  <span>{apy}%</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Payback Period</span>
+                  <span>{paybackPeriod} days</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
+        
         {/* Footer */}
         <div className={cn(
           "shrink-0", // Prevent shrinking
@@ -746,7 +1087,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               <span className="text-sm text-muted-foreground">
                 {openedFromSlashedIcon ? (
                   <>{stakeAmount} / {maxStakeAmount} cred ({Math.round((stakedCred / maxStakeAmount) * 100)}%)</>
-                ) : isSlashing ? (
+                ) : isUserRestake && isSlashing ? (
                   <>{slashAmount} / {currentlyStaked} slashed ({currentlyStaked > 0 ? Math.round((slashAmount / currentlyStaked) * 100) : 0}%)</>
                 ) : (
                   <>{stakeAmount} / {maxStakeAmount} staked ({maxStakeAmount > 0 ? Math.round((stakedCred / maxStakeAmount) * 100) : 0}%)</>
@@ -754,6 +1095,16 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               </span>
             </div>
             
+            {openedFromSlashedIcon && existingDoubt?.isUserDoubt && existingDoubt.userAmount > 0 && (
+              <div className="flex items-center gap-2 text-sm bg-muted/30 rounded-md p-3">
+                <InfoIcon className="size-4 shrink-0" />
+                <p>
+                  You already have an active doubt of {existingDoubt.userAmount} cred. 
+                  Doubts cannot be modified after creation.
+                </p>
+              </div>
+            )}
+
             <Slider
               value={[stakedCred]}
               onValueChange={handleSliderChange}
@@ -761,8 +1112,8 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               step={1}
               className="w-full"
               destructive={!openedFromSlashedIcon && isSlashing}
-              disabled={maxStakeAmount === 0}
-              existingCred={openedFromSlashedIcon ? 0 : existingStakedCred}
+              disabled={maxStakeAmount === 0 || (openedFromSlashedIcon && existingDoubt?.isUserDoubt && existingDoubt.userAmount > 0)}
+              existingCred={openedFromSlashedIcon ? existingDoubt?.amount ?? 0 : currentlyStaked}
               isDoubtMode={openedFromSlashedIcon}
             />
           </div>
@@ -778,11 +1129,11 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                   : "bg-endorsed/10 text-endorsed"
             )}>
               {openedFromSlashedIcon ? (
-                <>-{bonusFavor} favor</>
+                <>-{favorReduced} favor</>
               ) : isSlashing ? (
-                <>-{bonusFavor} favor</>
+                <>-{favorImpact} favor</>
               ) : (
-                <>+{bonusFavor} favor</>
+                <>+{favorImpact} favor</>
               )}
             </span>
             
@@ -794,9 +1145,14 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                 variant="default" 
                 className="bg-primary hover:bg-primary/90"
                 onClick={handleSubmit}
-                disabled={maxStakeAmount === 0 || stakedCred === 0}
+                disabled={
+                  maxStakeAmount === 0 || 
+                  (!openedFromSlashedIcon && !isSlashing && stakedCred === 0) || 
+                  isSubmitting ||
+                  (openedFromSlashedIcon && existingDoubt?.isUserDoubt && existingDoubt.userAmount > 0)
+                }
               >
-                Submit
+                {isSubmitting ? "Submitting..." : "Submit"}
               </Button>
             </div>
           </div>
@@ -805,8 +1161,8 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
       <ReputationAnalysisDialog
         open={showReputationAnalysis}
         onOpenChange={setShowReputationAnalysis}
-        restakers={mockRestakers}
-        aggregateReputation={aggregateReputation}
+        restakers={reputationData?.restakers ?? []}
+        aggregateReputation={reputationData?.aggregateReputation ?? 0}
       />
     </Dialog>
   );

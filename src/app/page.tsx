@@ -7,7 +7,6 @@ import { PointCard } from "@/components/PointCard";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { encodeId } from "@/lib/encodeId";
-import { favor } from "@/lib/negation-game/favor";
 import { preventDefaultIfContainsSelection } from "@/lib/preventDefaultIfContainsSelection";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -42,9 +41,9 @@ export default function Home() {
           <Link
             draggable={false}
             onClick={preventDefaultIfContainsSelection}
-            href={`/${encodeId(point.pointId)}`}
+            href={`/${encodeId(point.id)}`}
             className="flex border-b cursor-pointer hover:bg-accent py-2"
-            key={point.pointId}
+            key={point.id}
           >
             <DiscIcon className="ml-4 mt-3 shrink-0 size-6 text-muted-foreground stroke-1" />
             <PointCard
@@ -52,15 +51,15 @@ export default function Home() {
               amountSupporters={point.amountSupporters}
               createdAt={point.createdAt}
               totalCred={point.cred}
-              pointId={point.pointId}
-              favor={favor({ ...point })}
+              pointId={point.id}
+              favor={Math.floor(point.favor)}
               amountNegations={point.amountNegations}
               content={point.content}
               viewerContext={{ viewerCred: point.viewerCred }}
               onNegate={(e) => {
                 e.preventDefault();
                 user !== null ? setNegatedPoint({
-                  id: point.pointId,
+                  id: point.id,
                   content: point.content,
                   createdAt: point.createdAt,
                   cred: point.cred

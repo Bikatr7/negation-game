@@ -7,10 +7,18 @@ export const pointsWithDetailsView = pgView("point_with_details_view").as(
   (qb) =>
     qb
       .select({
-        pointId: pointsTable.id,
+        id: pointsTable.id,
         content: pointsTable.content,
         createdAt: pointsTable.createdAt,
         createdBy: pointsTable.createdBy,
+        viewerCred: sql<number>`
+        COALESCE((
+          SELECT cred
+          FROM ${endorsementsTable}
+          WHERE point_id = ${pointsTable}.id
+          AND user_id = current_user
+        ), 0)
+      `.as("viewer_cred"),
         amountNegations: sql<number>`
         COALESCE((
           SELECT COUNT(*)
@@ -77,4 +85,6 @@ export const pointsWithDetailsView = pgView("point_with_details_view").as(
 
 export type PointWithDetails = InferSelectViewModel<
   typeof pointsWithDetailsView
->;
+> & {
+  viewerCred?: number;
+};
