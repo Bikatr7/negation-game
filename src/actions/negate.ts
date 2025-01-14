@@ -26,28 +26,31 @@ export const negate = async ({
   const newerPointId = Math.max(negatedPointId, counterpointId);
   const olderPointId = Math.min(negatedPointId, counterpointId);
 
-  const negationId = await db.transaction(async (tx) => {
-    if (cred > 0) {
-      await tx
-        .update(usersTable)
-        .set({
-          cred: sql`${usersTable.cred} - ${cred}`,
-        })
-        .where(eq(usersTable.id, userId));
+  try {
+    return await db.transaction(async (tx) => {
+      if (cred > 0) {
+        await tx
+          .update(usersTable)
+          .set({
+            cred: sql`${usersTable.cred} - ${cred}`,
+          })
+          .where(eq(usersTable.id, userId));
 
-      await tx.insert(endorsementsTable).values({
-        cred,
-        pointId: counterpointId,
-        userId,
-      });
-    }
+        await tx.insert(endorsementsTable).values({
+          cred,
+          pointId: counterpointId,
+          userId,
+        });
+      }
 
-    return await tx
-      .insert(negationsTable)
-      .values({ createdBy: userId, newerPointId, olderPointId })
-      .returning({ negationId: negationsTable.id })
-      .then(([{ negationId }]) => negationId);
-  });
+      const result = await tx
+        .insert(negationsTable)
+        .values({ createdBy: userId, newerPointId, olderPointId })
+        .returning({ negationId: negationsTable.id });
 
-  return negationId;
+      return result[0].negationId;
+    });
+  } catch (error) {
+    throw error;
+  }
 };

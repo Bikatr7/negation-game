@@ -23,7 +23,11 @@ export const getCounterpointSuggestions = async (pointId: number) => {
     db
       .select()
       .from(definitionsTable)
-      .where(sql`lower(${definitionsTable.term}) IN ${point.keywords}`)
+      .where(
+        point.keywords.length > 0 
+          ? sql`lower(${definitionsTable.term}) IN ${point.keywords}`
+          : sql`1=0`
+      )
       .execute(),
   ]);
 
