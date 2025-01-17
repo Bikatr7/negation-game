@@ -436,7 +436,7 @@ export default function PointPage({
                         amountNegations={negation.amountNegations}
                         pointId={negation.id}
                         totalCred={negation.cred}
-                        viewerContext={{ viewerCred: negation.cred }}
+                        viewerContext={{ viewerCred: negation.viewerCred }}
                         isNegation={true}
                         parentPoint={{
                           ...point,

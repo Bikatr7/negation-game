@@ -313,10 +313,9 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
   const maxStakeAmount = Math.floor(openedFromSlashedIcon 
     ? canDoubt 
       ? Math.min(
-          originalPoint.stakedAmount || 0,
-          existingRestake?.totalRestakeAmount ?? 0,
-          user?.cred ?? 0,
-          originalPoint.viewerCred ?? 0
+          originalPoint.stakedAmount || 0,        // Can't doubt more than total stake on point
+          existingRestake?.totalRestakeAmount ?? 0, // Can't doubt more than total restaked
+          user?.cred ?? 0                          // Can't doubt more than user's available cred
         )
       : 0
     : Math.min(
@@ -612,38 +611,6 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
               Done
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (openedFromSlashedIcon && !existingRestake) {
-    return (
-      <Dialog {...props} open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex flex-col gap-6 p-4 sm:p-6 max-w-xl">
-          <div className="flex items-center gap-2">
-            <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="text-primary">
-                <ArrowLeftIcon className="size-5" />
-              </Button>
-            </DialogClose>
-            <DialogTitle>Nothing to Doubt</DialogTitle>
-          </div>
-
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="space-y-2">
-              <p className="text-muted-foreground">
-                There are no active restakes to doubt for this point-negation pair.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                You can only place doubts against existing restakes.
-              </p>
-            </div>
-          </div>
-
-          <Button variant="outline" onClick={() => onOpenChange?.(false)}>
-            Close
-          </Button>
         </DialogContent>
       </Dialog>
     );

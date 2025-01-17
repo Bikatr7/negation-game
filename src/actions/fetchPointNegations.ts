@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/services/db";
-import { pointsWithDetailsView, effectiveRestakesView, slashesTable, doubtsTable, restakesTable } from "@/db/schema";
+import { pointsWithDetailsView, endorsementsTable, effectiveRestakesView, slashesTable, doubtsTable, restakesTable } from "@/db/schema";
 import { eq, or, and, ne, sql } from "drizzle-orm";
 import { negationsTable } from "@/db/tables/negationsTable";
 import { getUserId } from "@/actions/getUserId";
@@ -11,6 +11,7 @@ export type NegationResult = {
   content: string;
   createdAt: Date;
   cred: number;
+  viewerCred: number;
   amountSupporters: number;
   amountNegations: number;
   negationsCred: number;
@@ -46,6 +47,14 @@ export const fetchPointNegations = async (pointId: number): Promise<NegationResu
       content: pointsWithDetailsView.content,
       createdAt: pointsWithDetailsView.createdAt,
       cred: pointsWithDetailsView.cred,
+      viewerCred: sql<number>`
+        COALESCE((
+          SELECT ${endorsementsTable.cred}
+          FROM ${endorsementsTable}
+          WHERE ${endorsementsTable.pointId} = ${pointsWithDetailsView.id}
+          AND ${endorsementsTable.userId} = ${userId}
+        ), 0)
+      `.as('viewer_cred'),
       amountSupporters: pointsWithDetailsView.amountSupporters,
       amountNegations: pointsWithDetailsView.amountNegations,
       negationsCred: pointsWithDetailsView.negationsCred,
