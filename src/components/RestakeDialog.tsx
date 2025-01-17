@@ -277,6 +277,24 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
     setIsSlashing(openedFromSlashedIcon ? false : newStakedCred < currentlyStaked);
   }, [currentlyStaked, openedFromSlashedIcon, existingDoubt]);
 
+  const limitingFactor = useMemo(() => {
+    if (!openedFromSlashedIcon || !canDoubt) return null;
+
+    const factors = {
+      stake: originalPoint.stakedAmount || 0,
+      restake: existingRestake?.totalRestakeAmount ?? 0,
+      cred: user?.cred ?? 0
+    };
+
+    const minValue = Math.min(...Object.values(factors));
+    
+    if (minValue === factors.stake) return "total stake on point";
+    if (minValue === factors.restake) return "total amount restaked";
+    if (minValue === factors.cred) return "your available cred";
+    
+    return null;
+  }, [openedFromSlashedIcon, canDoubt, originalPoint.stakedAmount, existingRestake?.totalRestakeAmount, user?.cred]);
+
   // Loading state handler
   if (isLoadingUser) {
     return (
@@ -418,24 +436,6 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
       ? Math.min(originalPoint.stakedAmount || 0, Number(existingRestake?.totalRestakeAmount ?? 0))
       : originalPoint.viewerCred || 0
   );
-
-  const limitingFactor = useMemo(() => {
-    if (!openedFromSlashedIcon || !canDoubt) return null;
-
-    const factors = {
-      stake: originalPoint.stakedAmount || 0,
-      restake: existingRestake?.totalRestakeAmount ?? 0,
-      cred: user?.cred ?? 0
-    };
-
-    const minValue = Math.min(...Object.values(factors));
-    
-    if (minValue === factors.stake) return "total stake on point";
-    if (minValue === factors.restake) return "total amount restaked";
-    if (minValue === factors.cred) return "your available cred";
-    
-    return null;
-  }, [openedFromSlashedIcon, canDoubt, originalPoint.stakedAmount, existingRestake?.totalRestakeAmount, user?.cred]);
 
   if ((originalPoint.viewerCred || 0) === 0 && !openedFromSlashedIcon) {
     return (
@@ -765,7 +765,7 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                           APY Formula: <code>APY = e^(ln(0.05) + ln(negation_favor))</code>
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Base APY of 5% is modified by the negation's favor. Higher favor on the negation point increases potential earnings.
+                          Base APY of 5% is modified by the negation&apos;s favor. Higher favor on the negation point increases potential earnings.
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Daily earnings = (APY × doubt_amount) / 365
