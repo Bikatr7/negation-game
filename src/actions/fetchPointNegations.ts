@@ -49,7 +49,7 @@ export const fetchPointNegations = async (pointId: number): Promise<NegationResu
       cred: pointsWithDetailsView.cred,
       viewerCred: sql<number>`
         COALESCE((
-          SELECT ${endorsementsTable.cred}
+          SELECT SUM(${endorsementsTable.cred})
           FROM ${endorsementsTable}
           WHERE ${endorsementsTable.pointId} = ${pointsWithDetailsView.id}
           AND ${endorsementsTable.userId} = ${userId}

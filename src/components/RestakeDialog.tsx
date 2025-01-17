@@ -219,48 +219,13 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
   const effectiveFavorFromRestaking = favorFromRestaking || 0;
   const totalDoubt = stakedCred;
 
-  const hourlyRate = useMemo(() => {
-    if (!openedFromSlashedIcon || stakedCred === 0) return 0;
-    
-    // Base APY of 5%
-    const baseAPY = 0.05;
-    
-    // Get current favor of negation point
-    const negationFavor = favorHistory?.length 
-      ? favorHistory[favorHistory.length - 1].favor 
-      : 0;
-
-    // APY modulation: e^(ln(APY) + ln(current favor + 0.0001))
-    const modifiedAPY = Math.exp(
-      Math.log(baseAPY) + 
-      Math.log(negationFavor + 0.0001)
-    );
-
-    // hourly_rate = (APY * doubt_amount) / (365 * 24)
-    return (modifiedAPY * stakedCred) / (365 * 24);
-  }, [openedFromSlashedIcon, stakedCred, favorHistory]);
-
-  // Calculate daily and yearly earnings
-  const dailyEarnings = useMemo(() => {
-    return Math.round(hourlyRate * 24 * 100) / 100;
-  }, [hourlyRate]);
-
-  // Calculate APY
+  // Calculate APY first
   const apy = useMemo(() => {
     if (stakedCred === 0) return 0;
     
     const negationFavor = negationFavorHistory?.length 
       ? negationFavorHistory[negationFavorHistory.length - 1].favor 
       : 0;
-
-    console.log('APY calculation:', {
-      stakedCred,
-      negationFavor,
-      baseAPY: 0.05,
-      logBaseAPY: Math.log(0.05),
-      logNegationFavor: Math.log(negationFavor + 0.0001),
-      modifiedAPY: Math.exp(Math.log(0.05) + Math.log(negationFavor + 0.0001))
-    });
 
     const modifiedAPY = Math.exp(
       Math.log(0.05) + 
@@ -269,6 +234,20 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
 
     return Math.round(modifiedAPY * 100);
   }, [stakedCred, negationFavorHistory]);
+
+  // Calculate hourly rate from APY
+  const hourlyRate = useMemo(() => {
+    if (!openedFromSlashedIcon || stakedCred === 0) return 0;
+    
+    // Convert APY percentage back to decimal and calculate hourly rate
+    const apyDecimal = apy / 100;
+    return (apyDecimal * stakedCred) / (365 * 24);
+  }, [openedFromSlashedIcon, stakedCred, apy]);
+
+  // Calculate daily earnings from hourly rate
+  const dailyEarnings = useMemo(() => {
+    return Math.round(hourlyRate * 24 * 100) / 100;
+  }, [hourlyRate]);
 
   const resultingFavor = Math.max(0, effectiveFavorFromRestaking - favorReduced);
 
@@ -308,6 +287,17 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
       </Dialog>
     );
   }
+
+  // Add before maxStakeAmount calculation
+  console.log('Max stake calculation:', {
+    openedFromSlashedIcon,
+    canDoubt,
+    originalPointStakedAmount: originalPoint.stakedAmount,
+    totalRestakeAmount: existingRestake?.totalRestakeAmount,
+    userCred: user?.cred,
+    currentlyStaked,
+    viewerCred: originalPoint.viewerCred
+  });
 
   // Calculate maximum stake amount based on mode and constraints
   const maxStakeAmount = Math.floor(openedFromSlashedIcon 
@@ -428,6 +418,24 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
       ? Math.min(originalPoint.stakedAmount || 0, Number(existingRestake?.totalRestakeAmount ?? 0))
       : originalPoint.viewerCred || 0
   );
+
+  const limitingFactor = useMemo(() => {
+    if (!openedFromSlashedIcon || !canDoubt) return null;
+
+    const factors = {
+      stake: originalPoint.stakedAmount || 0,
+      restake: existingRestake?.totalRestakeAmount ?? 0,
+      cred: user?.cred ?? 0
+    };
+
+    const minValue = Math.min(...Object.values(factors));
+    
+    if (minValue === factors.stake) return "total stake on point";
+    if (minValue === factors.restake) return "total amount restaked";
+    if (minValue === factors.cred) return "your available cred";
+    
+    return null;
+  }, [openedFromSlashedIcon, canDoubt, originalPoint.stakedAmount, existingRestake?.totalRestakeAmount, user?.cred]);
 
   if ((originalPoint.viewerCred || 0) === 0 && !openedFromSlashedIcon) {
     return (
@@ -748,9 +756,21 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-80">
-                      <p className="text-sm text-muted-foreground">
-                        Reputation scores and APY calculations shown here are for demonstration purposes only.
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Reputation scores and APY calculations shown here are for demonstration purposes only.
+                        </p>
+                        <Separator className="my-2" />
+                        <p className="text-sm text-muted-foreground">
+                          APY Formula: <code>APY = e^(ln(0.05) + ln(negation_favor))</code>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Base APY of 5% is modified by the negation's favor. Higher favor on the negation point increases potential earnings.
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Daily earnings = (APY × doubt_amount) / 365
+                        </p>
+                      </div>
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -990,6 +1010,15 @@ export const RestakeDialog: FC<RestakeDialogProps> = ({
                 <AlertCircle className="size-4 shrink-0" />
                 <p>
                   Your maximum slash amount has been reduced to {originalPoint.viewerCred} cred due to endorsement payouts.
+                </p>
+              </div>
+            )}
+
+            {openedFromSlashedIcon && limitingFactor && (
+              <div className="flex items-center gap-2 text-sm bg-muted/30 rounded-md p-3">
+                <InfoIcon className="size-4 shrink-0" />
+                <p>
+                  Maximum doubt amount is limited by {limitingFactor} ({maxStakeAmount} cred)
                 </p>
               </div>
             )}
